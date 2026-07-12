@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Рабочий Трекер</title>
+    <style>
+      :root {
+        --bg-color: #121212;
+        --card-bg: #1e1e1e;
+        --accent-color: #00bcd4;
+        --text-color: #ffffff;
+        --text-muted: #aaaaaa;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .container {
+        width: 100%;
+        max-width: 400px;
+      }
+      h1,
+      h2 {
+        text-align: center;
+        margin-bottom: 10px;
+      }
+      .card {
+        background-color: var(--card-bg);
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      }
+      .stats-row {
+        display: flex;
+        justify-content: space-between;
+        margin: 8px 0;
+      }
+      .bold {
+        font-weight: bold;
+        color: var(--accent-color);
+      }
+      input {
+        width: 100%;
+        padding: 10px;
+        margin: 8px 0;
+        background: #2d2d2d;
+        border: 1px solid #444;
+        color: white;
+        border-radius: 6px;
+        box-sizing: border-box;
+        font-size: 16px;
+      }
+      button {
+        width: 100%;
+        padding: 12px;
+        background-color: var(--accent-color);
+        border: none;
+        color: black;
+        font-weight: bold;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-top: 5px;
+      }
+      button.secondary {
+        background-color: #333;
+        color: #ff5252;
+        margin-top: 15px;
+      }
+      .history-item {
+        border-bottom: 1px solid #333;
+        padding: 8px 0;
+      }
+      .history-item:last-child {
+        border: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>📊 Предикты доходов</h1>
+
+      <!-- КАРТОЧКА СТАТИСТИКИ -->
+      <div class="card">
+        <h2>Текущий месяц</h2>
+        <div class="stats-row">
+          <span>👨‍💻 Всего аккаунтов:</span> <span id="total-accs">0</span>
+        </div>
+        <div class="stats-row">
+          <span>🪙 Всего бонусов:</span> <span id="total-bonus">0 грн</span>
+        </div>
+        <hr style="border-color: #333" />
+        <div class="stats-row">
+          <span>📉 50% (Минимум):</span>
+          <span id="pred-50" class="bold">0 грн</span>
+        </div>
+        <div class="stats-row">
+          <span>📈 75% (Хороший):</span>
+          <span id="pred-75" class="bold">0 грн</span>
+        </div>
+        <div class="stats-row">
+          <span>💵 100% (Предикт):</span>
+          <span id="pred-100" class="bold">0 грн</span>
+        </div>
+
+        <button class="secondary" onclick="closeMonth()">
+          🔒 Закрыть месяц
+        </button>
+      </div>
+
+      <!-- ФОРМА ДОБАВЛЕНИЯ -->
+      <div class="card">
+        <h2>Добавить смену</h2>
+        <label>Количество аккаунтов</label>
+        <input type="number" id="input-accs" placeholder="Например, 434" />
+
+        <label>Сумма бонуса (грн)</label>
+        <input
+          type="number"
+          id="input-bonus"
+          placeholder="Например, 2000"
+          value="0"
+        />
+
+        <button onclick="addShift()">Добавить смену 📆</button>
+      </div>
+
+      <!-- ИСТОРИЯ МЕСЯЦЕВ -->
+      <div class="card">
+        <h2>📜 История выплат</h2>
+        <div id="history-list"></div>
+      </div>
+    </div>
+
+    <script>
+      const RATE = 25;
+
+      // Загрузка данных из локальной памяти телефона/браузера
+      let data = JSON.parse(localStorage.getItem("payout_tracker_data")) || {
+        current_month: [],
+        history: [],
+      };
+
+      function saveData() {
+        localStorage.setItem("payout_tracker_data", JSON.stringify(data));
+        render();
+      }
+
+      function addShift() {
+        const accsInput = document.getElementById("input-accs");
+        const bonusInput = document.getElementById("input-bonus");
+
+        const accs = parseInt(accsInput.value) || 0;
+        const bonus = parseInt(bonusInput.value) || 0;
+
+        if (accs <= 0) {
+          alert("Введите количество аккаунтов!");
+          return;
+        }
+
+        const now = new Date();
+        const dateStr = `${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+        const total_100 = accs * RATE + bonus;
+
+        data.current_month.push({
+          date: dateStr,
+          accounts: accs,
+          bonus: bonus,
+          total_100: total_100,
+        });
+
+        accsInput.value = "";
+        bonusInput.value = "0";
+
+        saveData();
+      }
+
+      function closeMonth() {
+        if (data.current_month.length === 0) {
+          alert("Текущий месяц пуст, нечего закрывать!");
+          return;
+        }
+
+        let totalAccounts = data.current_month.reduce(
+          (sum, item) => sum + item.accounts,
+          0,
+        );
+        let totalBonus = data.current_month.reduce(
+          (sum, item) => sum + item.bonus,
+          0,
+        );
+        let predicted100 = totalAccounts * RATE + totalBonus;
+
+        let actualPaidStr = prompt(
+          `По прогнозу (100%) должно быть ${predicted100} грн.\nКакая сумма реальной выплаты вышла на руки?`,
+        );
+        let actualPaid = parseInt(actualPaidStr);
+
+        if (isNaN(actualPaid)) {
+          alert("Действие отменено или введено не число.");
+          return;
+        }
+
+        const now = new Date();
+        const options = { month: "long", year: "numeric" };
+        const monthName = now.toLocaleDateString("ru-RU", options);
+
+        data.history.push({
+          period: monthName,
+          predicted: predicted100,
+          actual: actualPaid,
+          diff: actualPaid - predicted100,
+        });
+
+        data.current_month = [];
+        saveData();
+      }
+
+      function render() {
+        let totalAccounts = data.current_month.reduce(
+          (sum, item) => sum + item.accounts,
+          0,
+        );
+        let totalBonus = data.current_month.reduce(
+          (sum, item) => sum + item.bonus,
+          0,
+        );
+
+        let base = totalAccounts * RATE;
+        let pred50 = base * 0.5 + totalBonus;
+        let pred75 = base * 0.75 + totalBonus;
+        let pred100 = base + totalBonus;
+
+        document.getElementById("total-accs").innerText = totalAccounts;
+        document.getElementById("total-bonus").innerText = totalBonus + " грн";
+        document.getElementById("pred-50").innerText = pred50 + " грн";
+        document.getElementById("pred-75").innerText = pred75 + " грн";
+        document.getElementById("pred-100").innerText = pred100 + " грн";
+
+        // Рендеринг истории
+        const historyList = document.getElementById("history-list");
+        historyList.innerHTML = "";
+
+        if (data.history.length === 0) {
+          historyList.innerHTML =
+            '<p style="color:#aaa; text-align:center;">Архив пуст</p>';
+        }
+
+        data.history.forEach((item) => {
+          const div = document.createElement("div");
+          div.className = "history-item";
+          div.innerHTML = `
+                <div style="font-weight:bold; color: #00bcd4;">📅 ${item.period}</div>
+                <div style="font-size:14px; margin-top:4px; color:#ddd;">
+                    🎯 Предикт: ${item.predicted} грн | 💵 Факт: ${item.actual} грн
+                </div>
+                <div style="font-size:13px; color: ${item.diff >= 0 ? "#4caf50" : "#ff5252"}">
+                    📊 Разница: ${item.diff >= 0 ? "+" : ""}${item.diff} грн
+                </div>
+            `;
+          historyList.appendChild(div);
+        });
+      }
+
+      // Первичный запуск отрисовки при загрузке страницы
+      render();
+    </script>
+  </body>
+</html>
