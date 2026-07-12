@@ -389,16 +389,21 @@
         display: flex;
         gap: 10px;
         margin-bottom: 16px;
+        width: 100%;
       }
 
       .date-row .form-group {
-        flex: 1;
+        flex: 1 1 0;
+        min-width: 0;
         margin-bottom: 0;
       }
 
       input[type="number"],
       input[type="date"] {
+        display: block;
         width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
         padding: 13px 14px;
         background: rgba(12, 9, 6, 0.55);
         border: 1px solid rgba(248, 244, 236, 0.14);
@@ -412,6 +417,18 @@
       input[type="date"] {
         font-family: "Inter", sans-serif;
         color-scheme: dark;
+        -webkit-appearance: none;
+        appearance: none;
+        min-height: 46px;
+        line-height: 1.2;
+      }
+
+      /* iOS Safari renders the date field's inner text as its own
+         flex layout that can force the control past 100% width
+         unless every ancestor also constrains its own box. */
+      input[type="date"]::-webkit-date-and-time-value {
+        text-align: left;
+        min-width: 0;
       }
 
       input::placeholder {
