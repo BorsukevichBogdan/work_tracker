@@ -206,7 +206,7 @@
         grid-template-columns: 1fr 1fr;
         gap: 1px;
         background: rgba(248, 244, 236, 0.1);
-        margin-bottom: 24px;
+        margin-bottom: 14px;
         border-radius: 3px;
         overflow: hidden;
       }
@@ -230,6 +230,24 @@
         font-weight: 600;
         margin-top: 6px;
         color: var(--ink);
+      }
+
+      .stat-inline-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding: 0 4px;
+      }
+      .stat-inline-label {
+        font-size: 12px;
+        color: var(--ink-muted);
+      }
+      .stat-inline-value {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--teal);
       }
 
       /* --- Signature: prediction meter --- */
@@ -423,9 +441,6 @@
         line-height: 1.2;
       }
 
-      /* iOS Safari renders the date field's inner text as its own
-         flex layout that can force the control past 100% width
-         unless every ancestor also constrains its own box. */
       input[type="date"]::-webkit-date-and-time-value {
         text-align: left;
         min-width: 0;
@@ -447,13 +462,12 @@
         display: flex;
         flex-direction: column;
         gap: 1px;
-        max-height: 220px;
+        max-height: 250px;
         overflow-y: auto;
         background: rgba(248, 244, 236, 0.08);
       }
 
-      .shift-item,
-      .history-item {
+      .shift-item {
         background: rgba(12, 9, 6, 0.55);
         border: none;
         border-radius: 0;
@@ -461,6 +475,51 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+      }
+
+      /* Стили кликабельной истории */
+      .history-item-clickable {
+        background: rgba(12, 9, 6, 0.55);
+        padding: 13px 14px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        transition: background 0.2s ease;
+      }
+      .history-item-clickable:active {
+        background: rgba(24, 19, 15, 0.8);
+      }
+
+      .history-details-hidden {
+        display: none;
+        margin-top: 8px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(248, 244, 236, 0.08);
+      }
+
+      .history-shifts-sublist {
+        margin-top: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        max-height: 120px;
+        overflow-y: auto;
+        background: rgba(6, 4, 3, 0.4);
+        padding: 10px;
+        border-radius: 2px;
+      }
+
+      .sublist-item {
+        font-size: 12px;
+        display: flex;
+        justify-content: space-between;
+        color: var(--ink-soft);
+      }
+      .sublist-item span:first-child {
+        font-family: "JetBrains Mono", monospace;
+        color: var(--copper);
+        font-weight: 500;
       }
 
       .shift-date {
@@ -621,6 +680,11 @@
             <div class="stat-label">Бонусов</div>
             <div class="stat-value" id="total-bonus">0 грн.</div>
           </div>
+        </div>
+
+        <div class="stat-inline-row">
+          <span class="stat-inline-label">⚡ Среднее за смену (100%):</span>
+          <span class="stat-inline-value" id="avg-per-shift">0 грн.</span>
         </div>
 
         <div class="predict-section">
@@ -799,9 +863,13 @@
 
       // Установка сегодняшней даты по умолчанию в инпут смены
       window.onload = function () {
+        resetShiftDate();
+      };
+
+      function resetShiftDate() {
         const today = new Date().toISOString().split("T")[0];
         document.getElementById("input-shift-date").value = today;
-      };
+      }
 
       function saveData() {
         localStorage.setItem("payout_tracker_data", JSON.stringify(data));
@@ -838,6 +906,7 @@
 
         accsInput.value = "";
         bonusInput.value = "0";
+        resetShiftDate();
         saveData();
       }
 
@@ -856,6 +925,18 @@
         ) {
           data.history = [];
           saveData();
+        }
+      }
+
+      // Функция раскрытия деталей смен в истории
+      function toggleHistoryDetails(index) {
+        const detailsDiv = document.getElementById(`history-details-${index}`);
+        if (detailsDiv) {
+          if (detailsDiv.style.display === "block") {
+            detailsDiv.style.display = "none";
+          } else {
+            detailsDiv.style.display = "block";
+          }
         }
       }
 
@@ -925,6 +1006,7 @@
           predicted: currentPeriodPredict,
           actual: actualPaid,
           diff: actualPaid - currentPeriodPredict,
+          shifts_archive: [...data.current_month], // Архивация смен текущего периода
         });
 
         data.current_month = [];
@@ -942,6 +1024,7 @@
           0,
         );
         let base = totalAccounts * RATE;
+        let pred100 = base + totalBonus;
 
         document.getElementById("total-accs").innerText =
           totalAccounts + " шт.";
@@ -950,8 +1033,15 @@
           base * 0.5 + totalBonus + " грн.";
         document.getElementById("pred-75").innerText =
           base * 0.75 + totalBonus + " грн.";
-        document.getElementById("pred-100").innerText =
-          base + totalBonus + " грн.";
+        document.getElementById("pred-100").innerText = pred100 + " грн.";
+
+        // Расчет среднего дохода за смену
+        let avgPerShift =
+          data.current_month.length > 0
+            ? Math.round(pred100 / data.current_month.length)
+            : 0;
+        document.getElementById("avg-per-shift").innerText =
+          avgPerShift + " грн.";
 
         const shiftsList = document.getElementById("current-shifts-list");
         shiftsList.innerHTML =
@@ -959,7 +1049,6 @@
             ? '<div class="empty-state">Смен пока нет</div>'
             : "";
 
-        // Сортируем смены по датам, чтобы новые добавленные красиво вставали на свои места
         data.current_month.forEach((item, index) => {
           const div = document.createElement("div");
           div.className = "shift-item";
@@ -978,16 +1067,31 @@
           data.history.length === 0
             ? '<div class="empty-state">Архив пуст</div>'
             : "";
-        data.history.forEach((item) => {
+
+        data.history.forEach((item, index) => {
           const div = document.createElement("div");
-          div.className = "history-item";
-          div.style.flexDirection = "column";
-          div.style.alignItems = "stretch";
-          div.style.gap = "6px";
+          div.className = "history-item-clickable";
+          div.setAttribute("onclick", `toggleHistoryDetails(${index})`);
 
           const isPlus = item.diff >= 0;
           const diffClass = isPlus ? "diff-plus" : "diff-minus";
           const diffText = `${isPlus ? "+" : ""}${item.diff} грн.`;
+
+          // Генерация вложенного списка для архивных смен
+          let sublistHtml = "";
+          if (item.shifts_archive && item.shifts_archive.length > 0) {
+            item.shifts_archive.forEach((subItem) => {
+              sublistHtml += `
+                <div class="sublist-item">
+                    <span>📅 ${subItem.date}</span>
+                    <span>${subItem.accounts} акк. | +${subItem.bonus} грн.</span>
+                </div>
+              `;
+            });
+          } else {
+            sublistHtml =
+              '<div style="color:var(--ink-muted); font-size:11px; text-align:center; font-style:italic;">Детализация смен недоступна</div>';
+          }
 
           div.innerHTML = `
                 <div style="display:flex; justify-content: space-between; align-items:center;">
@@ -996,7 +1100,13 @@
                 </div>
                 <div style="font-size:12.5px; color:var(--ink-soft); display:flex; justify-content:space-between;">
                     <span>Предикт: <b style="color:var(--ink);">${item.predicted} грн.</b></span>
-                    <span>Факт: <b style="color:var(--ink);">${item.actual} грн.</b></span>
+                    <span>Fact: <b style="color:var(--ink);">${item.actual} грн.</b></span>
+                </div>
+                <div class="history-details-hidden" id="history-details-${index}" onclick="event.stopPropagation();">
+                    <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.04em; font-weight:600; color:var(--ink-muted); margin-bottom:4px;">📋 Архив смен:</div>
+                    <div class="history-shifts-sublist">
+                        ${sublistHtml}
+                    </div>
                 </div>
             `;
           historyList.appendChild(div);
