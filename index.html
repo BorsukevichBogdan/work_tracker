@@ -261,20 +261,61 @@
 
     <!-- Modal Settings -->
     <div class="modal" id="settings-modal">
-      <div class="modal-content">
+      <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
         <h3>Налаштування</h3>
+        
+        <!-- Rate Section -->
         <div class="form-group">
           <label>Ставка за 1 акаунт (RATE)</label>
           <input type="number" id="input-rate" inputmode="numeric" />
         </div>
+
+        <!-- Color Themes Section -->
+        <div class="form-group" style="margin-top: 18px;">
+          <label>Тема оформлення</label>
+          <div class="theme-grid">
+            <button type="button" class="theme-chip active" id="theme-btn-copper" onclick="selectTheme('copper')">
+              <span class="theme-swatch" style="background: linear-gradient(135deg, #e2a25a, #c07f36);"></span>
+              <span>Copper</span>
+            </button>
+            <button type="button" class="theme-chip" id="theme-btn-emerald" onclick="selectTheme('emerald')">
+              <span class="theme-swatch" style="background: linear-gradient(135deg, #10b981, #059669);"></span>
+              <span>Emerald</span>
+            </button>
+            <button type="button" class="theme-chip" id="theme-btn-amethyst" onclick="selectTheme('amethyst')">
+              <span class="theme-swatch" style="background: linear-gradient(135deg, #a855f7, #7c3aed);"></span>
+              <span>Amethyst</span>
+            </button>
+            <button type="button" class="theme-chip" id="theme-btn-obsidian" onclick="selectTheme('obsidian')">
+              <span class="theme-swatch" style="background: linear-gradient(135deg, #94a3b8, #475569);"></span>
+              <span>Obsidian</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Currency Converter Section -->
+        <div class="form-group" style="margin-top: 18px;">
+          <label>Конвертація валюти (НБУ)</label>
+          <select id="select-currency" class="select-styled" style="width: 100%;" onchange="onCurrencySelectChange()">
+            <option value="none">Тільки UAH (₴)</option>
+            <option value="USD">USD ($)</option>
+            <option value="EUR">EUR (€)</option>
+          </select>
+          <div id="nbu-rate-badge" style="margin-top: 8px; font-size: 11.5px; color: var(--ink-soft); display: flex; justify-content: space-between; align-items: center; background: rgba(12, 9, 6, 0.4); padding: 8px 12px; border-radius: 4px; border: 1px solid var(--card-border);">
+            <span id="nbu-rate-text">🏛️ Курс НБУ: завантаження...</span>
+            <button type="button" onclick="fetchNbuRates(true)" title="Оновити курс НБУ" style="width: auto; padding: 2px 6px; font-size: 11px; border: none; background: transparent; color: var(--copper); cursor: pointer;">🔄</button>
+          </div>
+        </div>
+
         <button class="btn-primary" onclick="saveSettings()">Зберегти налаштування</button>
         
-        <div style="margin-top: 24px; border-top: 1px solid var(--card-border); padding-top: 24px;">
+        <!-- Backup Section -->
+        <div style="margin-top: 20px; border-top: 1px solid var(--card-border); padding-top: 20px;">
           <label style="font-size: 11px; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 8px; display: block;">Резервне копіювання</label>
-          <button class="btn-ghost" onclick="exportData()" style="margin-bottom: 12px; width: 100%; border: 1px solid var(--ink-muted);">Експортувати дані (JSON)</button>
+          <button class="btn-ghost" onclick="exportData()" style="margin-bottom: 10px; width: 100%; border: 1px solid var(--ink-muted); padding: 10px;">Експортувати дані (JSON)</button>
           
           <input type="file" id="import-file" accept=".json" style="display: none;" onchange="importData(event)" />
-          <button class="btn-ghost" onclick="document.getElementById('import-file').click()" style="width: 100%; border: 1px solid var(--ink-muted);">Імпортувати дані</button>
+          <button class="btn-ghost" onclick="document.getElementById('import-file').click()" style="width: 100%; border: 1px solid var(--ink-muted); padding: 10px;">Імпортувати дані</button>
         </div>
         
         <button class="btn-ghost" style="margin-top: 12px; padding: 12px" onclick="closeModal('settings-modal')">Закрити</button>

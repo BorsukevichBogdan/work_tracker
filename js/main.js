@@ -8,11 +8,21 @@
       if (!data.settings) {
         data.settings = { rate: 25 };
       }
+      if (!data.settings.theme) {
+        data.settings.theme = 'copper';
+      }
+      if (!data.settings.currency) {
+        data.settings.currency = 'none';
+      }
+      if (!data.settings.currency_rate) {
+        data.settings.currency_rate = 41.5;
+      }
       if (typeof data.goal === "undefined") {
         data.goal = 0;
       }
 
       window.onload = function () {
+        applyTheme(data.settings.theme || 'copper');
         resetShiftDate();
         render();
       };
@@ -97,7 +107,7 @@
         let totalBonus = data.current_month.reduce((sum, item) => sum + item.bonus, 0);
         currentPeriodPredict = totalAccounts * data.settings.rate + totalBonus;
 
-        document.getElementById("modal-predict-text").innerText = `100% Предикт системи за поточні зміни: ${currentPeriodPredict} грн.`;
+        document.getElementById("modal-predict-text").innerText = `100% Предикт системи за поточні зміни: ${formatMoney(currentPeriodPredict)}`;
 
         const today = new Date();
         const oneMonthAgo = new Date();
@@ -149,17 +159,77 @@
         closeModal();
       }
 
+      // --- Currency & Format Helper ---
+
+      function formatMoney(amountUah) {
+        if (!data.settings.currency || data.settings.currency === 'none' || !data.settings.currency_rate || data.settings.currency_rate <= 0) {
+          return `${amountUah} грн.`;
+        }
+        const converted = (amountUah / data.settings.currency_rate).toFixed(1);
+        const symbolMap = {
+          'USD': '$',
+          'EUR': '€',
+          'USDT': '₮'
+        };
+        const sym = symbolMap[data.settings.currency] || '';
+        return `${amountUah} грн. · ${sym}${converted}`;
+      }
+
+      // --- Theme Logic ---
+
+      function applyTheme(themeName) {
+        if (themeName === 'copper' || !themeName) {
+          document.body.removeAttribute('data-theme');
+        } else {
+          document.body.setAttribute('data-theme', themeName);
+        }
+        document.querySelectorAll('.theme-chip').forEach(chip => chip.classList.remove('active'));
+        const activeBtn = document.getElementById(`theme-btn-${themeName || 'copper'}`);
+        if (activeBtn) activeBtn.classList.add('active');
+      }
+
+      function selectTheme(themeName) {
+        applyTheme(themeName);
+        data.settings.theme = themeName;
+        saveData();
+      }
+
       // --- Settings Logic ---
+
+      function toggleCurrencyRateInput() {
+        const select = document.getElementById('select-currency');
+        const wrapper = document.getElementById('currency-rate-wrapper');
+        const input = document.getElementById('input-currency-rate');
+        if (select.value === 'none') {
+          wrapper.style.display = 'none';
+        } else {
+          wrapper.style.display = 'block';
+          if (select.value === 'EUR' && (!input.value || input.value === '41.5')) {
+            input.value = '44.8';
+          } else if ((select.value === 'USD' || select.value === 'USDT') && (!input.value || input.value === '44.8')) {
+            input.value = '41.5';
+          }
+        }
+      }
 
       function openSettingsModal() {
         document.getElementById("input-rate").value = data.settings.rate;
+        document.getElementById("select-currency").value = data.settings.currency || 'none';
+        document.getElementById("input-currency-rate").value = data.settings.currency_rate || 41.5;
+        toggleCurrencyRateInput();
+        applyTheme(data.settings.theme || 'copper');
         document.getElementById("settings-modal").style.display = "flex";
       }
 
       function saveSettings() {
         const newRate = parseInt(document.getElementById("input-rate").value);
+        const newCurrency = document.getElementById("select-currency").value;
+        const newCurrencyRate = parseFloat(document.getElementById("input-currency-rate").value) || 41.5;
+
         if (newRate > 0) {
           data.settings.rate = newRate;
+          data.settings.currency = newCurrency;
+          data.settings.currency_rate = newCurrencyRate;
           data.current_month.forEach(shift => {
              shift.total_100 = shift.accounts * data.settings.rate + shift.bonus;
           });
@@ -189,8 +259,9 @@
             const importedData = JSON.parse(e.target.result);
             if (importedData.current_month && importedData.history) {
                data = importedData;
-               if (!data.settings) data.settings = { rate: 25 };
+               if (!data.settings) data.settings = { rate: 25, theme: 'copper', currency: 'none', currency_rate: 41.5 };
                if (typeof data.goal === "undefined") data.goal = 0;
+               applyTheme(data.settings.theme || 'copper');
                saveData();
                closeModal("settings-modal");
                alert("Дані успішно імпортовано!");
@@ -393,7 +464,7 @@
               const totalBonus = dayShifts.reduce((s, x) => s + x.bonus, 0);
               const totalIncome = totalAccs * data.settings.rate + totalBonus;
               document.getElementById("cal-day-details").innerHTML = `
-                <span>📅 <b>${dateFormatted}</b>: ${totalAccs} ак. | +${totalBonus} грн. бонус | <b>${totalIncome} грн.</b></span>
+                <span>📅 <b>${dateFormatted}</b>: ${totalAccs} ак. | +${totalBonus} грн. | <b>${formatMoney(totalIncome)}</b></span>
               `;
             };
           } else {
@@ -446,14 +517,14 @@
         document.getElementById("rec-max-accs").innerText = `${maxAccs} ак.`;
         document.getElementById("rec-max-accs-date").innerText = maxAccsDate !== "—" ? `Дата: ${maxAccsDate}` : "—";
 
-        document.getElementById("rec-max-income").innerText = `${maxIncome} грн.`;
+        document.getElementById("rec-max-income").innerText = formatMoney(maxIncome);
         document.getElementById("rec-max-income-date").innerText = maxIncomeDate !== "—" ? `Дата: ${maxIncomeDate}` : "—";
 
         document.getElementById("rec-total-accs").innerText = `${totalAccs} ак.`;
         
         const currentPeriodPaid = data.current_month.reduce((sum, item) => sum + (item.accounts * data.settings.rate + item.bonus), 0);
         const totalAllTime = allHistoryPaid + currentPeriodPaid;
-        document.getElementById("rec-total-income").innerText = `${totalAllTime} грн.`;
+        document.getElementById("rec-total-income").innerText = formatMoney(totalAllTime);
       }
 
       function renderReceipt() {
@@ -471,8 +542,8 @@
         document.getElementById("receipt-total-accs").innerText = `${totalAccounts} ак.`;
         document.getElementById("receipt-rate").innerText = `${data.settings.rate} грн.`;
         document.getElementById("receipt-bonuses").innerText = `+${totalBonus} грн.`;
-        document.getElementById("receipt-pred-50").innerText = `${pred50} грн.`;
-        document.getElementById("receipt-pred-100").innerText = `${pred100} грн.`;
+        document.getElementById("receipt-pred-50").innerText = formatMoney(pred50);
+        document.getElementById("receipt-pred-100").innerText = formatMoney(pred100);
       }
 
       function printReceipt() {
@@ -580,11 +651,11 @@
 
         document.getElementById("total-accs").innerText = totalAccounts + " шт.";
         document.getElementById("total-bonus").innerText = totalBonus + " грн.";
-        document.getElementById("pred-50").innerText = pred50 + " грн.";
-        document.getElementById("pred-100").innerText = pred100 + " грн.";
+        document.getElementById("pred-50").innerText = formatMoney(pred50);
+        document.getElementById("pred-100").innerText = formatMoney(pred100);
 
         let avgPerShift = data.current_month.length > 0 ? Math.round(pred100 / data.current_month.length) : 0;
-        document.getElementById("avg-per-shift").innerText = avgPerShift + " грн.";
+        document.getElementById("avg-per-shift").innerText = formatMoney(avgPerShift);
 
         // Goal Logic
         const goalSection = document.getElementById("goal-section");
