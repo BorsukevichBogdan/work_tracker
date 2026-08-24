@@ -9,6 +9,7 @@
     <title>Work Tracker Pro</title>
     <link rel="stylesheet" href="css/style.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   </head>
   <body>
     <div class="app-container">
@@ -17,6 +18,14 @@
           <div class="logo-mark">WT<br />PRO</div>
           <div class="header-actions" style="display:flex; gap: 8px; align-items:center;">
             <div class="status-pill">Період відкрито</div>
+            <button class="icon-btn" onclick="openHubModal()" title="Активність та Звіти" aria-label="Активність та Звіти">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </button>
             <button class="icon-btn" onclick="openGoalModal()" title="Встановити ціль" aria-label="Встановити ціль">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="9"/>
@@ -308,6 +317,106 @@
         </div>
         <button class="btn-primary" onclick="saveEditShift()">Зберегти зміни</button>
         <button class="btn-ghost" style="margin-top: 12px; padding: 12px" onclick="closeModal('edit-shift-modal')">Скасувати</button>
+      </div>
+    </div>
+
+    <!-- Modal Activity Hub & Reports -->
+    <div class="modal" id="hub-modal">
+      <div class="modal-content hub-modal-content">
+        <div class="hub-tabs">
+          <button class="hub-tab active" id="tab-btn-calendar" onclick="switchHubTab('calendar')">📅 Календар</button>
+          <button class="hub-tab" id="tab-btn-records" onclick="switchHubTab('records')">🏆 Рекорди</button>
+          <button class="hub-tab" id="tab-btn-receipt" onclick="switchHubTab('receipt')">🧾 Звіт / Чек</button>
+        </div>
+
+        <!-- Tab: Calendar -->
+        <div class="hub-tab-pane active" id="pane-calendar">
+          <div class="calendar-header">
+            <button class="cal-nav-btn" onclick="prevMonthCal()">&larr;</button>
+            <span class="cal-title" id="cal-month-title">Місяць</span>
+            <button class="cal-nav-btn" onclick="nextMonthCal()">&rarr;</button>
+          </div>
+          <div class="calendar-grid-header">
+            <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Нд</span>
+          </div>
+          <div class="calendar-days-grid" id="calendar-days-grid"></div>
+          <div class="cal-day-details" id="cal-day-details">
+            Оберіть робочий день на календарі для перегляду деталей
+          </div>
+        </div>
+
+        <!-- Tab: Records -->
+        <div class="hub-tab-pane" id="pane-records" style="display: none;">
+          <div class="records-grid">
+            <div class="record-card">
+              <span class="record-icon">🚀</span>
+              <span class="record-label">Рекорд акаунтів</span>
+              <span class="record-value" id="rec-max-accs">0 ак.</span>
+              <span class="record-sub" id="rec-max-accs-date">—</span>
+            </div>
+            <div class="record-card">
+              <span class="record-icon">💰</span>
+              <span class="record-label">Рекорд доходу</span>
+              <span class="record-value" id="rec-max-income">0 грн.</span>
+              <span class="record-sub" id="rec-max-income-date">—</span>
+            </div>
+            <div class="record-card">
+              <span class="record-icon">📦</span>
+              <span class="record-label">Всього акаунтів</span>
+              <span class="record-value" id="rec-total-accs">0 ак.</span>
+              <span class="record-sub">за весь час</span>
+            </div>
+            <div class="record-card">
+              <span class="record-icon">💵</span>
+              <span class="record-label">Загальний дохід</span>
+              <span class="record-value" id="rec-total-income">0 грн.</span>
+              <span class="record-sub">за весь час</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Receipt / Report -->
+        <div class="hub-tab-pane" id="pane-receipt" style="display: none;">
+          <div class="digital-receipt" id="digital-receipt">
+            <div class="receipt-header">
+              <div class="receipt-brand">WORK TRACKER PRO</div>
+              <div class="receipt-subtitle">ЗВІТ ПОТОЧНОГО ПЕРІОДУ</div>
+              <div class="receipt-date" id="receipt-current-date">--.--.----</div>
+            </div>
+            <div class="receipt-divider"></div>
+            <div class="receipt-line">
+              <span>Відпрацьовано змін:</span>
+              <span id="receipt-shifts-count">0</span>
+            </div>
+            <div class="receipt-line">
+              <span>Опрацьовано акаунтів:</span>
+              <span id="receipt-total-accs">0 ак.</span>
+            </div>
+            <div class="receipt-line">
+              <span>Базова ставка (RATE):</span>
+              <span id="receipt-rate">25 грн.</span>
+            </div>
+            <div class="receipt-line">
+              <span>Нараховано бонусів:</span>
+              <span id="receipt-bonuses">+0 грн.</span>
+            </div>
+            <div class="receipt-divider"></div>
+            <div class="receipt-line receipt-total">
+              <span>ПЕРЕДБАЧЕНО (50%):</span>
+              <span id="receipt-pred-50">0 грн.</span>
+            </div>
+            <div class="receipt-line receipt-total">
+              <span>ПЕРЕДБАЧЕНО (100%):</span>
+              <span id="receipt-pred-100">0 грн.</span>
+            </div>
+            <div class="receipt-footer">
+              Дякуємо за продуктивну роботу! 🚀
+            </div>
+          </div>
+          <button class="btn-primary" onclick="printReceipt()" style="margin-top: 14px;">🖨️ Друкувати / Зберегти як PDF</button>
+        </div>
+
+        <button class="btn-ghost" style="margin-top: 12px; padding: 12px" onclick="closeModal('hub-modal')">Закрити</button>
       </div>
     </div>
 

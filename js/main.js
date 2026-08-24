@@ -114,7 +114,8 @@
            document.getElementById("close-period-modal").style.display = "none";
            document.getElementById("modal-actual-paid").value = "";
         } else {
-           document.getElementById(modalId).style.display = "none";
+           const el = document.getElementById(modalId);
+           if (el) el.style.display = "none";
         }
       }
 
@@ -148,7 +149,7 @@
         closeModal();
       }
 
-      // --- New Features Logic ---
+      // --- Settings Logic ---
 
       function openSettingsModal() {
         document.getElementById("input-rate").value = data.settings.rate;
@@ -159,7 +160,6 @@
         const newRate = parseInt(document.getElementById("input-rate").value);
         if (newRate > 0) {
           data.settings.rate = newRate;
-          // recalculate predictions in current month
           data.current_month.forEach(shift => {
              shift.total_100 = shift.accounts * data.settings.rate + shift.bonus;
           });
@@ -204,6 +204,8 @@
         reader.readAsText(file);
       }
 
+      // --- Goal Logic ---
+
       function openGoalModal() {
         document.getElementById("input-goal").value = data.goal || "";
         document.getElementById("goal-modal").style.display = "flex";
@@ -213,6 +215,7 @@
         const newGoal = parseInt(document.getElementById("input-goal").value);
         if (newGoal > 0) {
           data.goal = newGoal;
+          hasFiredConfettiForGoal = false;
           saveData();
           closeModal("goal-modal");
         } else {
@@ -222,9 +225,12 @@
 
       function clearGoal() {
         data.goal = 0;
+        hasFiredConfettiForGoal = false;
         saveData();
         closeModal("goal-modal");
       }
+
+      // --- Edit Shift Logic ---
 
       function openEditModal(index) {
         const item = data.current_month[index];
@@ -269,6 +275,218 @@
         closeModal("edit-shift-modal");
       }
 
+      // --- Confetti & Celebration ---
+      let hasFiredConfettiForGoal = false;
+
+      function checkAndTriggerGoalConfetti(pred50) {
+        if (data.goal && data.goal > 0 && pred50 >= data.goal) {
+          if (!hasFiredConfettiForGoal) {
+            hasFiredConfettiForGoal = true;
+            if (typeof confetti === 'function') {
+              confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 }
+              });
+              setTimeout(() => {
+                confetti({
+                  particleCount: 50,
+                  angle: 60,
+                  spread: 55,
+                  origin: { x: 0 }
+                });
+                confetti({
+                  particleCount: 50,
+                  angle: 120,
+                  spread: 55,
+                  origin: { x: 1 }
+                });
+              }, 250);
+            }
+          }
+        } else if (data.goal && data.goal > 0 && pred50 < data.goal) {
+          hasFiredConfettiForGoal = false;
+        }
+      }
+
+      // --- Activity Hub (Calendar, Records, Receipt) ---
+
+      let calCurrentDate = new Date();
+
+      function openHubModal() {
+        renderHubData();
+        document.getElementById("hub-modal").style.display = "flex";
+      }
+
+      function switchHubTab(tabName) {
+        document.querySelectorAll(".hub-tab").forEach(tab => tab.classList.remove("active"));
+        document.querySelectorAll(".hub-tab-pane").forEach(pane => pane.style.display = "none");
+
+        const activeTabBtn = document.getElementById(`tab-btn-${tabName}`);
+        const activePane = document.getElementById(`pane-${tabName}`);
+        
+        if (activeTabBtn) activeTabBtn.classList.add("active");
+        if (activePane) {
+          activePane.style.display = "block";
+        }
+      }
+
+      function prevMonthCal() {
+        calCurrentDate.setMonth(calCurrentDate.getMonth() - 1);
+        renderCalendar();
+      }
+
+      function nextMonthCal() {
+        calCurrentDate.setMonth(calCurrentDate.getMonth() + 1);
+        renderCalendar();
+      }
+
+      function renderCalendar() {
+        const monthNames = [
+          "Січень", "Лютий", "Березень", "Квітень", "Травень", "Червень",
+          "Липень", "Серпень", "Вересень", "Жовтень", "Листопад", "Грудень"
+        ];
+        const year = calCurrentDate.getFullYear();
+        const month = calCurrentDate.getMonth();
+
+        document.getElementById("cal-month-title").innerText = `${monthNames[month]} ${year}`;
+
+        const firstDay = new Date(year, month, 1).getDay();
+        const startDayOffset = (firstDay + 6) % 7;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        const grid = document.getElementById("calendar-days-grid");
+        grid.innerHTML = "";
+
+        let allShifts = [...data.current_month];
+        if (data.history) {
+          data.history.forEach(h => {
+            if (h.shifts_archive) {
+              allShifts = allShifts.concat(h.shifts_archive);
+            }
+          });
+        }
+
+        for (let i = 0; i < startDayOffset; i++) {
+          const empty = document.createElement("div");
+          empty.className = "cal-day empty";
+          grid.appendChild(empty);
+        }
+
+        const monthStr = String(month + 1).padStart(2, "0");
+
+        for (let d = 1; d <= daysInMonth; d++) {
+          const dayStr = String(d).padStart(2, "0");
+          const dateFormatted = `${dayStr}.${monthStr}`;
+
+          const dayShifts = allShifts.filter(s => s.date === dateFormatted);
+          const dayEl = document.createElement("div");
+          dayEl.className = "cal-day";
+          dayEl.innerText = d;
+
+          if (dayShifts.length > 0) {
+            dayEl.classList.add("has-shift");
+            dayEl.onclick = () => {
+              document.querySelectorAll(".cal-day").forEach(el => el.classList.remove("selected"));
+              dayEl.classList.add("selected");
+              const totalAccs = dayShifts.reduce((s, x) => s + x.accounts, 0);
+              const totalBonus = dayShifts.reduce((s, x) => s + x.bonus, 0);
+              const totalIncome = totalAccs * data.settings.rate + totalBonus;
+              document.getElementById("cal-day-details").innerHTML = `
+                <span>📅 <b>${dateFormatted}</b>: ${totalAccs} ак. | +${totalBonus} грн. бонус | <b>${totalIncome} грн.</b></span>
+              `;
+            };
+          } else {
+            dayEl.onclick = () => {
+              document.querySelectorAll(".cal-day").forEach(el => el.classList.remove("selected"));
+              dayEl.classList.add("selected");
+              document.getElementById("cal-day-details").innerHTML = `
+                <span>📅 ${dateFormatted}: змін не зафіксовано</span>
+              `;
+            };
+          }
+
+          grid.appendChild(dayEl);
+        }
+      }
+
+      function renderRecords() {
+        let allShifts = [...data.current_month];
+        let allHistoryPaid = 0;
+
+        if (data.history) {
+          data.history.forEach(h => {
+            allHistoryPaid += (h.actual || 0);
+            if (h.shifts_archive) {
+              allShifts = allShifts.concat(h.shifts_archive);
+            }
+          });
+        }
+
+        let maxAccs = 0;
+        let maxAccsDate = "—";
+        let maxIncome = 0;
+        let maxIncomeDate = "—";
+        let totalAccs = 0;
+
+        allShifts.forEach(s => {
+          totalAccs += (s.accounts || 0);
+          const shiftIncome = (s.accounts || 0) * data.settings.rate + (s.bonus || 0);
+
+          if (s.accounts > maxAccs) {
+            maxAccs = s.accounts;
+            maxAccsDate = s.date;
+          }
+          if (shiftIncome > maxIncome) {
+            maxIncome = shiftIncome;
+            maxIncomeDate = s.date;
+          }
+        });
+
+        document.getElementById("rec-max-accs").innerText = `${maxAccs} ак.`;
+        document.getElementById("rec-max-accs-date").innerText = maxAccsDate !== "—" ? `Дата: ${maxAccsDate}` : "—";
+
+        document.getElementById("rec-max-income").innerText = `${maxIncome} грн.`;
+        document.getElementById("rec-max-income-date").innerText = maxIncomeDate !== "—" ? `Дата: ${maxIncomeDate}` : "—";
+
+        document.getElementById("rec-total-accs").innerText = `${totalAccs} ак.`;
+        
+        const currentPeriodPaid = data.current_month.reduce((sum, item) => sum + (item.accounts * data.settings.rate + item.bonus), 0);
+        const totalAllTime = allHistoryPaid + currentPeriodPaid;
+        document.getElementById("rec-total-income").innerText = `${totalAllTime} грн.`;
+      }
+
+      function renderReceipt() {
+        const today = new Date();
+        const dateFormatted = `${String(today.getDate()).padStart(2, "0")}.${String(today.getMonth() + 1).padStart(2, "0")}.${today.getFullYear()}`;
+        document.getElementById("receipt-current-date").innerText = `Дата звіту: ${dateFormatted}`;
+
+        const totalAccounts = data.current_month.reduce((sum, item) => sum + item.accounts, 0);
+        const totalBonus = data.current_month.reduce((sum, item) => sum + item.bonus, 0);
+        const base = totalAccounts * data.settings.rate;
+        const pred50 = base * 0.5 + totalBonus;
+        const pred100 = base + totalBonus;
+
+        document.getElementById("receipt-shifts-count").innerText = `${data.current_month.length}`;
+        document.getElementById("receipt-total-accs").innerText = `${totalAccounts} ак.`;
+        document.getElementById("receipt-rate").innerText = `${data.settings.rate} грн.`;
+        document.getElementById("receipt-bonuses").innerText = `+${totalBonus} грн.`;
+        document.getElementById("receipt-pred-50").innerText = `${pred50} грн.`;
+        document.getElementById("receipt-pred-100").innerText = `${pred100} грн.`;
+      }
+
+      function printReceipt() {
+        window.print();
+      }
+
+      function renderHubData() {
+        renderCalendar();
+        renderRecords();
+        renderReceipt();
+      }
+
+      // --- Chart.js Logic ---
+
       let historyChartInstance = null;
 
       function renderChart() {
@@ -285,10 +503,9 @@
          }
          ctx.style.display = 'block';
 
-         // Take up to 6 last periods and reverse for chronological order
          const chartData = data.history.slice(0, 6).reverse();
          
-         const labels = chartData.map(h => h.period.split(' — ')[0]); // Using start date for label
+         const labels = chartData.map(h => h.period.split(' — ')[0]);
          const actuals = chartData.map(h => h.actual);
          const predicts = chartData.map(h => h.predicted);
 
@@ -358,11 +575,12 @@
         let totalAccounts = data.current_month.reduce((sum, item) => sum + item.accounts, 0);
         let totalBonus = data.current_month.reduce((sum, item) => sum + item.bonus, 0);
         let base = totalAccounts * data.settings.rate;
+        let pred50 = base * 0.5 + totalBonus;
         let pred100 = base + totalBonus;
 
         document.getElementById("total-accs").innerText = totalAccounts + " шт.";
         document.getElementById("total-bonus").innerText = totalBonus + " грн.";
-        document.getElementById("pred-50").innerText = (base * 0.5 + totalBonus) + " грн.";
+        document.getElementById("pred-50").innerText = pred50 + " грн.";
         document.getElementById("pred-100").innerText = pred100 + " грн.";
 
         let avgPerShift = data.current_month.length > 0 ? Math.round(pred100 / data.current_month.length) : 0;
@@ -372,10 +590,10 @@
         const goalSection = document.getElementById("goal-section");
         if (data.goal && data.goal > 0) {
            goalSection.style.display = "block";
-           let pred50 = base * 0.5 + totalBonus;
            const percent = Math.min(Math.round((pred50 / data.goal) * 100), 100);
            document.getElementById("goal-text").innerText = `${pred50} / ${data.goal} грн. (${percent}%)`;
            document.getElementById("goal-fill").style.width = `${percent}%`;
+           checkAndTriggerGoalConfetti(pred50);
         } else {
            goalSection.style.display = "none";
         }
