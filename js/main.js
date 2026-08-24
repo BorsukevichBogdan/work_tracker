@@ -105,9 +105,14 @@
 
         let totalAccounts = data.current_month.reduce((sum, item) => sum + item.accounts, 0);
         let totalBonus = data.current_month.reduce((sum, item) => sum + item.bonus, 0);
-        currentPeriodPredict = totalAccounts * data.settings.rate + totalBonus;
+        const base = totalAccounts * data.settings.rate;
+        const pred100 = base + totalBonus;
+        const pred50 = base * 0.5 + totalBonus;
+        // Store 50% as the realistic predicted payout
+        currentPeriodPredict = pred50;
 
-        document.getElementById("modal-predict-text").innerText = `100% Предикт системи за поточні зміни: ${formatMoney(currentPeriodPredict)}`;
+        document.getElementById("modal-predict-text").innerText =
+          `Очікувана виплата (50%): ${formatMoney(pred50)}\nПовний предикт (100%): ${formatMoney(pred100)}`;
 
         const today = new Date();
         const oneMonthAgo = new Date();
@@ -197,39 +202,26 @@
       // --- Settings Logic ---
 
       function toggleCurrencyRateInput() {
-        const select = document.getElementById('select-currency');
-        const wrapper = document.getElementById('currency-rate-wrapper');
-        const input = document.getElementById('input-currency-rate');
-        if (select.value === 'none') {
-          wrapper.style.display = 'none';
-        } else {
-          wrapper.style.display = 'block';
-          if (select.value === 'EUR' && (!input.value || input.value === '41.5')) {
-            input.value = '44.8';
-          } else if ((select.value === 'USD' || select.value === 'USDT') && (!input.value || input.value === '44.8')) {
-            input.value = '41.5';
-          }
-        }
+        // Currency rate is now auto-fetched from NBU — no manual input needed
       }
 
       function openSettingsModal() {
         document.getElementById("input-rate").value = data.settings.rate;
         document.getElementById("select-currency").value = data.settings.currency || 'none';
-        document.getElementById("input-currency-rate").value = data.settings.currency_rate || 41.5;
-        toggleCurrencyRateInput();
         applyTheme(data.settings.theme || 'copper');
+        // Trigger NBU rate fetch when opening settings
+        if (typeof fetchNbuRates === 'function') fetchNbuRates(false);
         document.getElementById("settings-modal").style.display = "flex";
       }
 
       function saveSettings() {
         const newRate = parseInt(document.getElementById("input-rate").value);
         const newCurrency = document.getElementById("select-currency").value;
-        const newCurrencyRate = parseFloat(document.getElementById("input-currency-rate").value) || 41.5;
 
         if (newRate > 0) {
           data.settings.rate = newRate;
           data.settings.currency = newCurrency;
-          data.settings.currency_rate = newCurrencyRate;
+          // currency_rate is managed automatically by fetchNbuRates()
           data.current_month.forEach(shift => {
              shift.total_100 = shift.accounts * data.settings.rate + shift.bonus;
           });
@@ -462,7 +454,7 @@
               dayEl.classList.add("selected");
               const totalAccs = dayShifts.reduce((s, x) => s + x.accounts, 0);
               const totalBonus = dayShifts.reduce((s, x) => s + x.bonus, 0);
-              const totalIncome = totalAccs * data.settings.rate + totalBonus;
+              const totalIncome = totalAccs * data.settings.rate * 0.5 + totalBonus;
               document.getElementById("cal-day-details").innerHTML = `
                 <span>📅 <b>${dateFormatted}</b>: ${totalAccs} ак. | +${totalBonus} грн. | <b>${formatMoney(totalIncome)}</b></span>
               `;
@@ -502,14 +494,15 @@
 
         allShifts.forEach(s => {
           totalAccs += (s.accounts || 0);
-          const shiftIncome = (s.accounts || 0) * data.settings.rate + (s.bonus || 0);
+          // Record uses 50% — the realistic payout per shift
+          const shiftIncome50 = (s.accounts || 0) * data.settings.rate * 0.5 + (s.bonus || 0);
 
           if (s.accounts > maxAccs) {
             maxAccs = s.accounts;
             maxAccsDate = s.date;
           }
-          if (shiftIncome > maxIncome) {
-            maxIncome = shiftIncome;
+          if (shiftIncome50 > maxIncome) {
+            maxIncome = shiftIncome50;
             maxIncomeDate = s.date;
           }
         });
@@ -521,10 +514,10 @@
         document.getElementById("rec-max-income-date").innerText = maxIncomeDate !== "—" ? `Дата: ${maxIncomeDate}` : "—";
 
         document.getElementById("rec-total-accs").innerText = `${totalAccs} ак.`;
-        
-        const currentPeriodPaid = data.current_month.reduce((sum, item) => sum + (item.accounts * data.settings.rate + item.bonus), 0);
-        const totalAllTime = allHistoryPaid + currentPeriodPaid;
-        document.getElementById("rec-total-income").innerText = formatMoney(totalAllTime);
+
+        // Total income = only real paid amounts from closed periods (entered manually on period close)
+        document.getElementById("rec-total-income").innerText =
+          allHistoryPaid > 0 ? formatMoney(allHistoryPaid) : "Немає закритих періодів";
       }
 
       function renderReceipt() {
@@ -717,7 +710,11 @@
           div.innerHTML = `
                 <div style="display:flex; justify-content: space-between; align-items:center;">
                     <span style="font-weight:600; color:var(--ink); font-size:13.5px;">${item.period}</span>
-                    <span class="history-diff ${diffClass}">${diffText}</span>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span class="history-diff ${diffClass}">${diffText}</span>
+                        <button class="edit-btn" onclick="event.stopPropagation(); openEditHistoryModal(${index})" style="padding:2px 8px; font-size:10px;">Ред.</button>
+                        <button class="delete-btn" onclick="event.stopPropagation(); deleteHistoryItem(${index})" style="padding:2px 8px; font-size:10px;">✕</button>
+                    </div>
                 </div>
                 <div style="font-size:12.5px; color:var(--ink-soft); display:flex; justify-content:space-between;">
                     <span>Предикт: <b style="color:var(--ink);">${item.predicted} грн.</b></span>
@@ -734,4 +731,105 @@
         });
 
         renderChart();
+      }
+
+      // --- Edit / Delete History Entry ---
+
+      let editingHistoryIndex = -1;
+
+      function openEditHistoryModal(index) {
+        editingHistoryIndex = index;
+        const item = data.history[index];
+        document.getElementById('edit-hist-period').value = item.period;
+        document.getElementById('edit-hist-predicted').value = item.predicted;
+        document.getElementById('edit-hist-actual').value = item.actual;
+        document.getElementById('edit-history-modal').style.display = 'flex';
+      }
+
+      function saveHistoryEdit() {
+        if (editingHistoryIndex < 0) return;
+        const item = data.history[editingHistoryIndex];
+        const newPeriod = document.getElementById('edit-hist-period').value.trim();
+        const newPredicted = parseFloat(document.getElementById('edit-hist-predicted').value) || 0;
+        const newActual = parseFloat(document.getElementById('edit-hist-actual').value);
+        if (isNaN(newActual)) {
+          alert('Введіть коректну суму фактичної виплати');
+          return;
+        }
+        item.period = newPeriod || item.period;
+        item.predicted = newPredicted;
+        item.actual = newActual;
+        item.diff = newActual - newPredicted;
+        saveData();
+        closeModal('edit-history-modal');
+        editingHistoryIndex = -1;
+      }
+
+      function deleteHistoryItem(index) {
+        const item = data.history[index];
+        if (confirm(`Видалити запис «${item.period}»?\nЦю дію не можна скасувати.`)) {
+          data.history.splice(index, 1);
+          saveData();
+        }
+      }
+
+      // --- NBU Exchange Rate ---
+
+      let nbuRates = {};
+
+      async function fetchNbuRates(forceRefresh) {
+        const badgeText = document.getElementById('nbu-rate-text');
+        const currency = data.settings.currency;
+
+        if (!currency || currency === 'none') {
+          if (badgeText) badgeText.textContent = '🏛️ Конвертація вимкнена';
+          return;
+        }
+
+        // Use cached rates unless forced
+        if (!forceRefresh && nbuRates[currency]) {
+          updateNbuBadge(currency, nbuRates[currency]);
+          return;
+        }
+
+        if (badgeText) badgeText.textContent = '🏛️ Курс НБУ: завантаження...';
+
+        try {
+          // NBU API: https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json
+          const resp = await fetch('https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json');
+          if (!resp.ok) throw new Error('Network error');
+          const rates = await resp.json();
+
+          const usd = rates.find(r => r.cc === 'USD');
+          const eur = rates.find(r => r.cc === 'EUR');
+          if (usd) nbuRates['USD'] = usd.rate;
+          if (eur) nbuRates['EUR'] = eur.rate;
+
+          const rate = nbuRates[currency];
+          if (rate) {
+            data.settings.currency_rate = rate;
+            saveData();
+            updateNbuBadge(currency, rate);
+          } else {
+            if (badgeText) badgeText.textContent = '⚠️ Курс НБУ не знайдено';
+          }
+        } catch (e) {
+          if (badgeText) badgeText.textContent = '⚠️ Не вдалося завантажити курс НБУ';
+          console.warn('NBU fetch error:', e);
+        }
+      }
+
+      function updateNbuBadge(currency, rate) {
+        const badgeText = document.getElementById('nbu-rate-text');
+        const sym = currency === 'USD' ? '$' : '€';
+        if (badgeText) {
+          badgeText.textContent = `🏛️ Курс НБУ: 1 ${sym} = ${rate.toFixed(2)} ₴`;
+        }
+      }
+
+      function onCurrencySelectChange() {
+        const newCurrency = document.getElementById('select-currency').value;
+        data.settings.currency = newCurrency;
+        saveData();
+        fetchNbuRates(false);
       }
