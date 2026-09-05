@@ -205,17 +205,25 @@ function submitCloseMonth() {
 // --- Currency & Format Helper ---
 
 function formatMoney(amountUah) {
-  if (!data.settings.currency || data.settings.currency === 'none' || !data.settings.currency_rate || data.settings.currency_rate <= 0) {
+  const currency = data.settings.currency;
+  if (!currency || currency === 'none') {
     return `${amountUah} грн.`;
   }
-  const converted = (amountUah / data.settings.currency_rate).toFixed(1);
-  const symbolMap = {
-    'USD': '$',
-    'EUR': '€',
-    'USDT': '₮'
-  };
-  const sym = symbolMap[data.settings.currency] || '';
-  return `${amountUah} грн. · ${sym}${converted}`;
+
+  // Prefer live in-memory rate (nbuRates), fall back to stored rate
+  const rate = (typeof nbuRates !== 'undefined' && nbuRates[currency])
+    ? nbuRates[currency]
+    : data.settings.currency_rate;
+
+  if (!rate || rate <= 0) {
+    return `${amountUah} грн.`;
+  }
+
+  const converted = (amountUah / rate).toFixed(1);
+  const symbolMap = { 'USD': '$', 'EUR': '€', 'USDT': '₮' };
+  const sym = symbolMap[currency] || '';
+
+  return `${amountUah} грн. - ${sym}${converted}`;
 }
 
 // --- Theme Logic ---
