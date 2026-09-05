@@ -841,6 +841,43 @@ input[type="date"]:focus {
   background: var(--success);
 }
 
+/* Toppers-only day */
+.cal-day.has-toppers-shift {
+  border-color: rgba(95, 217, 201, 0.4);
+  background: rgba(95, 217, 201, 0.1);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.cal-day.has-toppers-shift::after {
+  content: "";
+  position: absolute;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--teal);
+}
+
+/* Day with both main + toppers shifts */
+.cal-day.has-both-shift {
+  border-color: rgba(226, 162, 90, 0.5);
+  background: linear-gradient(135deg, rgba(82, 214, 138, 0.12) 50%, rgba(95, 217, 201, 0.12) 50%);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.cal-day.has-both-shift::after {
+  content: "";
+  position: absolute;
+  bottom: 3px;
+  left: calc(50% - 5px);
+  width: 10px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--success) 50%, var(--teal) 50%);
+}
+
 .cal-day.selected {
   outline: 2px solid var(--copper);
 }

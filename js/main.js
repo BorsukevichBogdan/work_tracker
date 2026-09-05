@@ -472,14 +472,27 @@
         const grid = document.getElementById("calendar-days-grid");
         grid.innerHTML = "";
 
-        let allShifts = [...data.current_month];
+        // Collect ALL main work shifts (current + archived)
+        let allMainShifts = [...data.current_month];
         if (data.history) {
           data.history.forEach(h => {
             if (h.shifts_archive) {
-              allShifts = allShifts.concat(h.shifts_archive);
+              allMainShifts = allMainShifts.concat(h.shifts_archive);
             }
           });
         }
+
+        // Collect ALL toppers shifts (current + archived)
+        let allToppersShifts = [...(data.toppers_current_month || [])];
+        if (data.toppers_history) {
+          data.toppers_history.forEach(h => {
+            if (h.shifts_archive) {
+              allToppersShifts = allToppersShifts.concat(h.shifts_archive);
+            }
+          });
+        }
+
+        const monthStr = String(month + 1).padStart(2, "0");
 
         for (let i = 0; i < startDayOffset; i++) {
           const empty = document.createElement("div");
@@ -487,28 +500,57 @@
           grid.appendChild(empty);
         }
 
-        const monthStr = String(month + 1).padStart(2, "0");
-
         for (let d = 1; d <= daysInMonth; d++) {
           const dayStr = String(d).padStart(2, "0");
           const dateFormatted = `${dayStr}.${monthStr}`;
 
-          const dayShifts = allShifts.filter(s => s.date === dateFormatted);
+          const dayMainShifts = allMainShifts.filter(s => s.date === dateFormatted);
+          const dayToppersShifts = allToppersShifts.filter(s => s.date === dateFormatted);
+          const hasMain = dayMainShifts.length > 0;
+          const hasToppers = dayToppersShifts.length > 0;
+
           const dayEl = document.createElement("div");
           dayEl.className = "cal-day";
           dayEl.innerText = d;
 
-          if (dayShifts.length > 0) {
+          if (hasMain && hasToppers) {
+            dayEl.classList.add("has-both-shift");
+          } else if (hasMain) {
             dayEl.classList.add("has-shift");
+          } else if (hasToppers) {
+            dayEl.classList.add("has-toppers-shift");
+          }
+
+          if (hasMain || hasToppers) {
             dayEl.onclick = () => {
               document.querySelectorAll(".cal-day").forEach(el => el.classList.remove("selected"));
               dayEl.classList.add("selected");
-              const totalAccs = dayShifts.reduce((s, x) => s + x.accounts, 0);
-              const totalBonus = dayShifts.reduce((s, x) => s + x.bonus, 0);
-              const totalIncome = totalAccs * data.settings.rate * 0.5 + totalBonus;
-              document.getElementById("cal-day-details").innerHTML = `
-                <span>📅 <b>${dateFormatted}</b>: ${totalAccs} ак. | +${totalBonus} грн. | <b>${formatMoney(totalIncome)}</b></span>
-              `;
+
+              let html = `<div style="width:100%; text-align:left;">`;
+              html += `<div style="font-weight:700; font-size:12px; color:var(--ink); margin-bottom:8px; text-align:center;">📅 ${dateFormatted}</div>`;
+
+              if (hasMain) {
+                const totalAccs = dayMainShifts.reduce((s, x) => s + (x.accounts || 0), 0);
+                const totalBonus = dayMainShifts.reduce((s, x) => s + (x.bonus || 0), 0);
+                const totalIncome = totalAccs * data.settings.rate * 0.5 + totalBonus;
+                html += `<div style="margin-bottom:6px; padding:6px 8px; background:rgba(82,214,138,0.08); border-radius:3px; border-left:2px solid var(--success);">`;
+                html += `<div style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--copper); font-weight:700; margin-bottom:2px;">💼 Основна</div>`;
+                html += `<span style="color:var(--ink-soft);">${totalAccs} ак. | +${totalBonus} грн. | <b style="color:var(--ink);">${formatMoney(totalIncome)}</b></span>`;
+                html += `</div>`;
+              }
+
+              if (hasToppers) {
+                const toppersRate = data.settings.toppers_rate || 30;
+                const totalAccs = dayToppersShifts.reduce((s, x) => s + (x.accounts || 0), 0);
+                const totalIncome = totalAccs * toppersRate * 0.5;
+                html += `<div style="padding:6px 8px; background:rgba(95,217,201,0.08); border-radius:3px; border-left:2px solid var(--teal);">`;
+                html += `<div style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--teal); font-weight:700; margin-bottom:2px;">⭐ Тест топери</div>`;
+                html += `<span style="color:var(--ink-soft);">${totalAccs} ак. | ${toppersRate} ₴/ак. | <b style="color:var(--ink);">${formatMoney(totalIncome)}</b></span>`;
+                html += `</div>`;
+              }
+
+              html += `</div>`;
+              document.getElementById("cal-day-details").innerHTML = html;
             };
           } else {
             dayEl.onclick = () => {
