@@ -542,7 +542,7 @@
               if (hasToppers) {
                 const toppersRate = data.settings.toppers_rate || 30;
                 const totalAccs = dayToppersShifts.reduce((s, x) => s + (x.accounts || 0), 0);
-                const totalIncome = totalAccs * toppersRate * 0.5;
+                const totalIncome = totalAccs * toppersRate;
                 html += `<div style="padding:6px 8px; background:rgba(95,217,201,0.08); border-radius:3px; border-left:2px solid var(--teal);">`;
                 html += `<div style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--teal); font-weight:700; margin-bottom:2px;">⭐ Тест топери</div>`;
                 html += `<span style="color:var(--ink-soft);">${totalAccs} ак. | ${toppersRate} ₴/ак. | <b style="color:var(--ink);">${formatMoney(totalIncome)}</b></span>`;
